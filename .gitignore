@@ -9,15 +9,16 @@ bin-int/
 *.vcxproj.filters
 *.sln
 
-# Exclude
-!vendor/bin
+vendor/CMakeFiles/
+vendor/GLFW/
+vendor/glm/
+vendor/imgui/
+vendor/cmake_install.cmake
 
 build/
 
 .cache/
 
 .vscode/
-
-vendor/
 
 ninja-build/
