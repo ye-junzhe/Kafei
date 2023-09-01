@@ -1,6 +1,6 @@
 ![RayTracingExample](https://github.com/ye-junzhe/Images/blob/main/RayTracing/Sphere.png)
 
-# Kafei
+# Kafi
 
 ## A Ray Tracing App Built On Top of Walnut
 
