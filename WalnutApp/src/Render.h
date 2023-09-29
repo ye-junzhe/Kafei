@@ -6,23 +6,24 @@
 #include "Walnut/Random.h"
 #include "Scene.h"
 
-#include <memory>
-#include <glm/glm.hpp>
-#include <limits>
-
 class Renderer {
+public:
+    struct Settings {
+        bool Accumulate = true;
+    };
 public:
     Renderer() = default;
 
     void Render(const Scene& scene, const Camera& camera);
 
-    //  params: SSAA_level: determine the SSAA level, Gets blended in the background if the level is set too high
-    void RenderSSAA(float SSAA_level, const Camera& camera, const Scene& scene);
+    void RenderSSAA(const Scene& scene, const Camera& camera);
 
     void OnResize(uint32_t, uint32_t);
 
     std::shared_ptr<Walnut::Image> GetFinalImage() const { return m_FinalImage; }
 
+    void ResetFrameIndex() { m_FrameIndex = 1; }
+    Settings& GetSettings() { return m_Settings; }
 
 private:
     struct HitPayload {
@@ -37,9 +38,14 @@ private:
     HitPayload ClosestHit(const Ray& ray, float hitDistance, int objectIndex);
     HitPayload Miss(const Ray& ray);
 
+    Settings m_Settings;
+
 private:
     std::shared_ptr<Walnut::Image> m_FinalImage;
     const Scene* m_ActiveScene = nullptr;
     const Camera* m_ActiveCamera = nullptr;
     uint32_t* m_ImageData = nullptr;
+    glm::vec4* m_AccumulationData = nullptr;
+
+    uint32_t m_FrameIndex;
 };

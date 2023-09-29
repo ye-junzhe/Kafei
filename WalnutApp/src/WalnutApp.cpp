@@ -4,8 +4,6 @@
 #include "Walnut/Timer.h"
 
 #include "Render.h"
-#include "imgui.h"
-#include <cstdio>
 #include <glm/gtc/type_ptr.hpp>
 
 using namespace Walnut;
@@ -42,7 +40,8 @@ public:
     }
 
     virtual void OnUpdate(float ts) override {
-        m_Camera.OnUpdate(ts);
+        if (m_Camera.OnUpdate(ts))
+            m_Renderer.ResetFrameIndex();
     }
 
     virtual void OnUIRender() override {
@@ -58,6 +57,11 @@ public:
 
         ImGui::DragFloat3("Light", glm::value_ptr(m_Scene.lightDir), 0.01f);
         ImGui::Separator();
+
+		ImGui::Checkbox("Accumulate", &m_Renderer.GetSettings().Accumulate);
+
+		if (ImGui::Button("Reset"))
+			m_Renderer.ResetFrameIndex();
 
         for (size_t i = 0; i < m_Scene.Spheres.size(); i++) {
             ImGui::PushID(i);
@@ -103,7 +107,7 @@ public:
         m_Renderer.OnResize(m_ViewportWidth, m_ViewportHeight);
         m_Camera.OnResize(m_ViewportWidth, m_ViewportHeight);
         m_Renderer.Render(m_Scene, m_Camera);
-        // m_Renderer.RenderSSAA(2.0f, m_Camera);
+        // m_Renderer.RenderSSAA(m_Scene, m_Camera);
 
 		m_LastRenderTime = timer.ElapsedMillis();
 	}

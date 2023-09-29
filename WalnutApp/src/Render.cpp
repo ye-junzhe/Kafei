@@ -1,5 +1,4 @@
 #include "Render.h"
-#include <cstddef>
 
 namespace Utils {
 
@@ -19,48 +18,53 @@ void Renderer::Render(const Scene& scene, const Camera& camera) {
     m_ActiveScene = &scene;
     m_ActiveCamera = &camera;
 
+    if (m_FrameIndex == 1) {
+        memset(m_AccumulationData, 0, m_FinalImage->GetWidth() * m_FinalImage->GetHeight() * sizeof(glm::vec4));
+    }
+
     for (uint32_t y = 0; y < m_FinalImage->GetHeight(); y++) {
         for (uint32_t x = 0; x < m_FinalImage->GetWidth(); x++) {
             glm::vec4 color = PerPixel(x, y);
-            color = glm::clamp(color, glm::vec4(0.0f), glm::vec4(1.0f));
-            m_ImageData[x + y * m_FinalImage->GetWidth()] = Utils::ConvertToRGBA(color);
+            m_AccumulationData[x + y * m_FinalImage->GetWidth()] += color;
+			glm::vec4 accumulatedColor = m_AccumulationData[x + y * m_FinalImage->GetWidth()];
+			accumulatedColor /= (float)m_FrameIndex;
+
+			accumulatedColor = glm::clamp(accumulatedColor, glm::vec4(0.0f), glm::vec4(1.0f));
+			m_ImageData[x + y * m_FinalImage->GetWidth()] = Utils::ConvertToRGBA(accumulatedColor);
+        }
+    }
+
+    m_FinalImage->SetData(m_ImageData);
+
+    if (m_Settings.Accumulate)
+        m_FrameIndex++;
+    else
+        m_FrameIndex = 1;
+}
+
+void Renderer::RenderSSAA(const Scene& scene, const Camera& camera) {
+    uint32_t ssaaFactor = 2; // 2x2 SSAA
+
+    for (uint32_t y = 0; y < m_FinalImage->GetHeight(); y++) {
+        for (uint32_t x = 0; x < m_FinalImage->GetWidth(); x++) {
+            glm::vec4 ssaaColor(0.0f);
+
+            // Perform SSAA by sampling sub-pixels
+            for (uint32_t sy = 0; sy < ssaaFactor; sy++) {
+                for (uint32_t sx = 0; sx < ssaaFactor; sx++) {
+                    glm::vec2 subPixelOffset = glm::vec2(sx, sy) / float(ssaaFactor);
+                    glm::vec4 color = PerPixel(x + subPixelOffset.x, y + subPixelOffset.y);
+                    ssaaColor += color;
+                }
+            }
+
+            ssaaColor /= float(ssaaFactor * ssaaFactor);
+            ssaaColor = glm::clamp(ssaaColor, glm::vec4(0.0f), glm::vec4(1.0f));
+            m_ImageData[x + y * m_FinalImage->GetWidth()] = Utils::ConvertToRGBA(ssaaColor);
         }
     }
     m_FinalImage->SetData(m_ImageData);
 }
-
-// void Renderer::RenderSSAA(float SSAA_level, const Camera& camera, const Scene& scene) {
-//     Ray ray;
-//     ray.Origin = camera.GetPosition();
-//
-//     for (uint32_t y = 0; y < m_FinalImage->GetWidth() * SSAA_level; y++) {
-//         for (uint32_t x = 0; x < m_FinalImage->GetHeight() * SSAA_level; x++) {
-//             uint32_t sampleCount = 0;
-//             glm::vec4 color(0.0f);
-//
-//             // Generate multiple rays per pixel
-//             for (uint32_t subY = -SSAA_level; subY <= SSAA_level; subY += SSAA_level) {
-//                 for (uint32_t subX = -SSAA_level; subX <= SSAA_level; subX += SSAA_level) {
-//                     uint32_t sampleX = (x + subX);
-//                     uint32_t sampleY = (y + subY);
-//
-//                     if (sampleX >= 0 && sampleX < (m_FinalImage->GetWidth()) &&
-//                         sampleY >= 0 && sampleY < (m_FinalImage->GetHeight())) {
-//                         ray.Direction = camera.GetRayDirections()[sampleX + sampleY * m_FinalImage->GetWidth()];
-//                         color += TraceRay(scene, ray);
-//                         sampleCount++;
-//                     }
-//                 }
-//             }
-//
-//             color /= sampleCount;
-//             color = glm::clamp(color, glm::vec4(0.0f), glm::vec4(1.0f));
-//             m_ImageData[x + y * m_FinalImage->GetWidth()] = Utils::ConvertToRGBA(color);
-//         }
-//     }
-//     m_FinalImage->Resize(m_FinalImage->GetWidth(), m_FinalImage->GetHeight());
-//     m_FinalImage->SetData(m_ImageData);
-// }
 
 void Renderer::OnResize(uint32_t width, uint32_t height) {
     if (m_FinalImage) {
@@ -73,6 +77,9 @@ void Renderer::OnResize(uint32_t width, uint32_t height) {
 
     delete[] m_ImageData;
     m_ImageData = new uint32_t[width * height];
+
+    delete[] m_AccumulationData;
+    m_AccumulationData = new glm::vec4[width * height];
 }
 
 
@@ -168,7 +175,7 @@ Renderer::HitPayload Renderer::ClosestHit(const Ray& ray, float hitDistance, int
     const Sphere& closestSphere = m_ActiveScene->Spheres[objectIndex];
 
     glm::vec3 origin = ray.Origin - closestSphere.Position;
-    payload.WorldPosition= origin + ray.Direction * hitDistance;
+    payload.WorldPosition = origin + ray.Direction * hitDistance;
     // The normal on the sphere of the hit point
     payload.WorldNormal = glm::normalize(payload.WorldPosition);
     payload.WorldPosition += closestSphere.Position;
